@@ -30,60 +30,91 @@
  * POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "pin.H"
-#include <iostream>
 #include <stdio.h>
 #include <stdlib.h>
+#include <types.h>
 
-/*
- * trace inspection (instrumentation function)
- *
- * traverse the basic blocks (BBLs) on the trace and
- * inspect every instruction for instrumenting it
- * accordingly --- dummy version; simply counts the
- * number of instructions inside the trace
- *
- * @trace:      instructions trace; given by PIN
- */
+#include <fstream>
+#include <iostream>
+#include <map>
+#include <ostream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "pin.H"
+#include "util.hpp"
+
+using namespace std;
+
+static map<ADDRINT, string> inst_map;
+// Addresses of instructions (dynamically executed inst)
+static vector<ADDRINT> inst_vec;
+ostream *out = &cerr;
+
+KNOB<BOOL> KnobMainOnly(KNOB_MODE_WRITEONCE, "pintool", "main_only", "0",
+                        "Log only in main binary.");
+KNOB<string> KnobOutputName(KNOB_MODE_WRITEONCE, "pintool", "o", "",
+                            "Output Name");
+
+static void log_executing_inst(ADDRINT addr) { inst_vec.push_back(addr); }
+
 static void trace_inspect(TRACE trace, VOID *v) {
   /* iterators */
   BBL bbl;
   INS ins;
 
-  /* instruction counter */
-  size_t ins_ct = 0;
-
   /* traverse all the BBLs in the trace */
   for (bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
     /* traverse all the instructions in the BBL */
-    for (ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins))
-      /* analyze the instruction; dummy */
-      ins_ct++;
+    for (ins = BBL_InsHead(bbl); INS_Valid(ins); ins = INS_Next(ins)) {
+      if (KnobMainOnly.Value() && !INS_InMain(ins)) {
+        continue;
+      }
+      inst_map[INS_Address(ins)] = INS_Disassemble(ins);
+      INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)log_executing_inst,
+                               IARG_INST_PTR, IARG_END);
+    }
   }
 }
 
-/*
- * NullPin
- *
- * used for estimating the overhead of Pin
- */
+VOID Fini(INT32 code, VOID *v) {
+  string disasm;
+  UINT64 num_executed = 0;
+
+  /* Count up instructions */
+  for (ADDRINT addr : inst_vec) {
+    num_executed++;
+    disasm = inst_map[addr];
+    *out << hexstr(addr) << "," << disasm << endl;
+  }
+}
+
 int main(int argc, char **argv) {
   /* initialize symbol processing */
   PIN_InitSymbols();
 
   /* initialize PIN */
   if (PIN_Init(argc, argv)) {
-    std::cerr
-        << "Sth error in PIN_Init. Plz use the right command line options."
-        << std::endl;
+    cerr << "Sth error in PIN_Init. Plz use the right command line options."
+         << endl;
+    return -1;
+  }
+
+  /* Output to file if specified */
+  if (!KnobOutputName.Value().empty()) {
+    out = new ofstream(KnobOutputName.Value().c_str());
+  } else {
+    *out << "Plz specify output filename with -o option." << endl;
     return -1;
   }
 
   /* register trace_ins() to be called for every trace */
   TRACE_AddInstrumentFunction(trace_inspect, NULL);
 
+  PIN_AddFiniFunction(Fini, 0);
+
   PIN_StartProgram();
 
   return 0;
 }
-
