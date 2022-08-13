@@ -52,10 +52,13 @@ static map<ADDRINT, string> inst_map;
 static vector<ADDRINT> inst_vec;
 ostream *out = &cerr;
 
-KNOB<BOOL> KnobMainOnly(KNOB_MODE_WRITEONCE, "pintool", "main_only", "0",
+KNOB<BOOL> KnobMainOnly(KNOB_MODE_WRITEONCE, "pintool", "main_only", "1",
                         "Log only in main binary.");
 KNOB<string> KnobOutputName(KNOB_MODE_WRITEONCE, "pintool", "o", "",
                             "Output Name");
+KNOB<BOOL> KnobRelativeAddress(
+    KNOB_MODE_WRITEONCE, "pintool", "rel_addr", "0",
+    "Output relative address instead of abstract one.");
 
 static void log_executing_inst(ADDRINT addr) { inst_vec.push_back(addr); }
 
@@ -63,6 +66,7 @@ static void trace_inspect(TRACE trace, VOID *v) {
   /* iterators */
   BBL bbl;
   INS ins;
+  ADDRINT addr;
 
   /* traverse all the BBLs in the trace */
   for (bbl = TRACE_BblHead(trace); BBL_Valid(bbl); bbl = BBL_Next(bbl)) {
@@ -71,9 +75,14 @@ static void trace_inspect(TRACE trace, VOID *v) {
       if (KnobMainOnly.Value() && !INS_InMain(ins)) {
         continue;
       }
-      inst_map[INS_Address(ins)] = INS_Disassemble(ins);
+      if (KnobRelativeAddress.Value()) {
+        addr = INS_RelAddress(ins);
+      } else {
+        addr = INS_Address(ins);
+      }
+      inst_map[addr] = INS_Disassemble(ins);
       INS_InsertPredicatedCall(ins, IPOINT_BEFORE, (AFUNPTR)log_executing_inst,
-                               IARG_INST_PTR, IARG_END);
+                               IARG_ADDRINT, addr, IARG_END);
     }
   }
 }
@@ -106,6 +115,12 @@ int main(int argc, char **argv) {
     out = new ofstream(KnobOutputName.Value().c_str());
   } else {
     *out << "Plz specify output filename with -o option." << endl;
+    return -1;
+  }
+
+  /* Validate rel_addr option */
+  if (KnobRelativeAddress.Value() && !KnobMainOnly.Value()) {
+    cerr << "-rel_addr can be enabled only when -main_only is enabled.";
     return -1;
   }
 

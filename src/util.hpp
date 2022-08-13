@@ -6,3 +6,4 @@
 
 std::string get_date_time_str();
 BOOL INS_InMain(INS ins);
+ADDRINT INS_RelAddress(INS ins);

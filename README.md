@@ -40,4 +40,5 @@ Result would be like:
 
 ## ToDo
 
+- [x] Add option for relative address.
 - [ ] Support AT&T syntax.

@@ -27,3 +27,9 @@ BOOL INS_InMain(INS ins) {
   IMG img = IMG_FindByAddress(inst_addr);
   return IMG_Valid(img) && IMG_IsMainExecutable(img);
 }
+
+ADDRINT INS_RelAddress(INS ins) {
+  ADDRINT inst_addr = INS_Address(ins);
+  IMG img = IMG_FindByAddress(inst_addr);
+  return inst_addr - IMG_LowAddress(img);
+}
