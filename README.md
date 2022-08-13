@@ -37,6 +37,9 @@ Result would be like:
 
 - `-o` (required) : Output filename.
 - `-main_only` : When set to `1`, logs instructions only in main binary. Otherwise, logs all instructions.
+  - default : `1`, optional
+- `-rel_addr` : When set to `1`, logs offset from image top as instruction address. `-main_only` must be set to `1` to enable this option.
+  - default : `0`, optional
 
 ## ToDo
 
