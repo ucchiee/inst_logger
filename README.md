@@ -45,3 +45,4 @@ Result would be like:
 
 - [x] Add option for relative address.
 - [ ] Support AT&T syntax.
+- [ ] Loging of memory read/write.
